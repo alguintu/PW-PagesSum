@@ -41,3 +41,9 @@ And if you wanted things a little more formatted, just run that through number_f
 ```
 <p>Job costs £<?php echo number_format($pages->sum('template=jobs', 'costs'), 2); ?></p>
 ```
+
+An average($selector, $field) now works too...
+
+```
+<p>Average job costs £<?php echo $pages->average('template=jobs', 'costs'); ?></p>
+```
