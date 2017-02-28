@@ -16,45 +16,65 @@ class PagesSum extends WireData implements Module {
         );
     }
 
-    public function init() {
-        $this->addHook('Pages::sum', function ($event) {
-            $selectorString = $event->arguments(0);
-            $fieldName = $event->arguments(1);
+	public function init() {
+		$this->addHook('Pages::sum', $this, 'sum'); 
+		$this->addHook('Pages::average', $this, 'average'); 
+	}
+	
+	private function fetch($s, $f) {
+		$selectorString = $s;
+		$fieldName = $f;
+		$result = [];
 
-            // Find all the pages associated with the selector string
-            $pageFinder = new PageFinder();
-            $idQuery = $pageFinder->findIDs(new Selectors($selectorString), array('returnQuery' => true));
-            $idQuery->set('orderby', array());
-            $idQuery->set('groupby', array());
-            $idQuery->set('limit', array());
-            $stmt = $idQuery->execute();
-            $idArray = $stmt->fetchAll(PDO::FETCH_COLUMN);
-            // If no pages were found, return 0
-            if (count($idArray) == 0) {
-                $event->return = 0;
-                return;
-            }
-            $idString = implode(',', $idArray);
+		// Find all the pages associated with the selector string
+		$pageFinder = new PageFinder();
+		$idQuery = $pageFinder->findIDs(new Selectors($selectorString), array('returnQuery' => true));
+		$idQuery->set('orderby', array()); 
+		$idQuery->set('groupby', array()); 
+		$idQuery->set('limit', array());
+		$stmt = $idQuery->execute();
+		$idArray = $stmt->fetchAll(PDO::FETCH_COLUMN);
+		// If no pages were found, return 0
+		//push id count to result
 
-            // Get the table name for the given field name
-            $field = $this->fields->get($fieldName);
-            // If no field with this name is found, return 0;
-            if (!$field) {
-                $event->return = 0;
-                return;
-            }
-            $tableName = $field->getTable();
+		$field = $this->fields->get($fieldName);
+		if (count($idArray) == 0 || !$field) {
+			$result[] = 0;
+			$result[] = 0;
+			return $result;
+		}		
 
-            // Run the SUM query
-            $sumQuery = new DatabaseQuerySelect();
-            $sumQuery->select("SUM(data)");
-            $sumQuery->from($tableName);
-            $sumQuery->where("pages_id IN ($idString)");
-            $stmt2 = $sumQuery->execute();
-            list($total) = $stmt2->fetch(PDO::FETCH_NUM);
+		$idString = implode(',', $idArray);
+		$tableName = $field->getTable();
 
-            $event->return = $total;
-        });
-    }
+		// Run the SUM query
+		$sumQuery = new DatabaseQuerySelect();
+		$sumQuery->select("SUM(data)");
+		$sumQuery->from($tableName);
+		$sumQuery->where("pages_id IN ($idString)");
+		$stmt2 = $sumQuery->execute();
+		list($total) = $stmt2->fetch(PDO::FETCH_NUM);
 
+		//$event->return = $total;
+		$result[] = $total;
+		return $result;
+	}
+
+	public function sum($event) {
+		$data = $this->fetch($event->arguments(0), $event->arguments(1));
+		if ($data[0] == 0 || $data[1] == 0) {
+			$event->return = 0;
+			return 0;
+		}
+		return $data[1];
+	}	
+	
+	public function average($event) {
+		$data = $this->fetch($event->arguments(0), $event->arguments(1));
+		if ($data[0] == 0 || $data[1] == 0) {
+			$event->return = 0;
+			return 0;
+		}
+		return ($data[1] / $data[0]);
+	}
 }
